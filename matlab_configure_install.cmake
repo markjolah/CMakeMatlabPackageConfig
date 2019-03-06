@@ -97,24 +97,16 @@ function(matlab_configure_install)
         file(RELATIVE_PATH ARG_MATLAB_CODE_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} ${ARG_MATLAB_CODE_INSTALL_DIR})
     endif()
 
-    if(NOT ARG_BUILD_TREE_STARTUP_M_LOCATION)
-        set(ARG_BUILD_TREE_STARTUP_M_LOCATION ${CMAKE_BINARY_DIR}/startup${PROJECT_NAME}.m)
-    endif()
     if(NOT ARG_DEPENDENCY_STARTUP_M_LOCATIONS)
         set(ARG_DEPENDENCY_STARTUP_M_LOCATIONS)
     endif()
     list(APPEND ARG_DEPENDENCY_STARTUP_M_LOCATIONS ${MexIFace_MATLAB_STARTUP_M})
 
     # Set different names for build-tree and install-tree files
-    set(ARG_PACKAGE_CONFIG_FILE ${PROJECT_NAME}Config-matlab.cmake)
+    set(ARG_PACKAGE_CONFIG_FILE ${PROJECT_NAME}Config.cmake)
+    set(ARG_PACKAGE_CONFIG_MATLAB_FILE ${PROJECT_NAME}Config-matlab.cmake)
     if(OPT_EXPORT_BUILD_TREE AND NOT DEFINED ARG_EXPORT_BUILD_TREE)
         set(ARG_EXPORT_BUILD_TREE True)
-    endif()
-    set(ARG_STARTUP_M_INSTALL_TREE_FILE ${ARG_STARTUP_M_FILE}.install_tree)
-    if(ARG_EXPORT_BUILD_TREE)
-        set(ARG_PACKAGE_CONFIG_INSTALL_TREE_FILE ${PROJECT_NAME}Config-matlab.cmake.install_tree) #Generated <Package>Config.cmake Version meant for the install tree but name mangled to prevent use in build tree
-    else()
-        set(ARG_PACKAGE_CONFIG_INSTALL_TREE_FILE ${ARG_PACKAGE_CONFIG_FILE}) #Generated <Package>Config.cmake Version meant for the install tree but name mangled to prevent use in build tree
     endif()
 
     #Install Matlab source
@@ -128,56 +120,55 @@ function(matlab_configure_install)
 
     include(CMakePackageConfigHelpers)
     if(ARG_PACKAGE_CONFIG_TEMPLATE)
-        #Main ${PROJECT_NAME}Config.cmake package config file (includes the ${PROJECT_NAME}@Config-matlab.cmake file)
-        configure_package_config_file(${ARG_PACKAGE_CONFIG_TEMPLATE} ${ARG_CONFIG_DIR}/${PROJECT_NAME}Config.cmake
-                                    INSTALL_DESTINATION ${ARG_CONFIG_INSTALL_DIR})
-        install(FILES ${ARG_CONFIG_DIR}/${PROJECT_NAME}Config.cmake  DESTINATION ${ARG_CONFIG_INSTALL_DIR} COMPONENT Development)
+        #Main ${PROJECT_NAME}Config.cmake package config file (includes the ${PROJECT_NAME}@Config-matlab.cmake file) for install tree
+        configure_package_config_file(${ARG_PACKAGE_CONFIG_TEMPLATE} PackageConfigInstallTree/${ARG_PACKAGE_CONFIG_FILE}
+                                      INSTALL_DESTINATION ${ARG_CONFIG_INSTALL_DIR})
+        install(FILES ${ARG_CONFIG_DIR}/PackageConfigInstallTree/${ARG_PACKAGE_CONFIG_FILE}
+                DESTINATION ${ARG_CONFIG_INSTALL_DIR} COMPONENT Development)
     endif()
 
     #install-tree export config ${PROJECT_NAME}Config-matlab.cmake
-    if(IS_ABSOLUTE ARG_CONFIG_INSTALL_DIR)
-        set(ABSOLUTE_CONFIG_INSTALL_DIR ${ARG_CONFIG_INSTALL_DIR})
-    else()
-        set(ABSOLUTE_CONFIG_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${ARG_CONFIG_INSTALL_DIR})
-    endif()
     set(_MATLAB_CODE_DIR ${ARG_MATLAB_CODE_INSTALL_DIR}) #Set relative to install prefix for configure_package_config_file
     set(_MATLAB_STARTUP_M ${ARG_MATLAB_CODE_INSTALL_DIR}/${ARG_STARTUP_M_FILE})
-    configure_package_config_file(${ARG_PACKAGE_CONFIG_MATLAB_TEMPLATE} ${ARG_CONFIG_DIR}/${ARG_PACKAGE_CONFIG_INSTALL_TREE_FILE}
+    configure_package_config_file(${ARG_PACKAGE_CONFIG_MATLAB_TEMPLATE} ${ARG_CONFIG_DIR}/PackageConfigInstallTree/${ARG_PACKAGE_CONFIG_MATLAB_FILE}
                                     INSTALL_DESTINATION ${ARG_CONFIG_INSTALL_DIR}
                                     PATH_VARS _MATLAB_CODE_DIR _MATLAB_STARTUP_M
                                     NO_CHECK_REQUIRED_COMPONENTS_MACRO)
-    install(FILES ${ARG_CONFIG_DIR}/${ARG_PACKAGE_CONFIG_INSTALL_TREE_FILE} RENAME ${ARG_PACKAGE_CONFIG_FILE}
-            DESTINATION ${ARG_CONFIG_INSTALL_DIR} COMPONENT Development)
+    install(FILES ${ARG_CONFIG_DIR}/PackageConfigInstallTree/${ARG_PACKAGE_CONFIG_MATLAB_FILE} DESTINATION ${ARG_CONFIG_INSTALL_DIR} COMPONENT Development)
 
     #startup.m install-tree
     set(_MATLAB_CODE_DIR ".") # Relative to startup<PROJECT_NAME>.m file startup.m
     set(_STARTUP_M_INSTALL_DIR ${ARG_MATLAB_CODE_INSTALL_DIR}) #Install dir relative to install prefix
     #Remap install time dependent startup.m locations to be relative to startup@PROJECT_NAME@.m location
     set(_DEPENDENCY_STARTUP_M_LOCATIONS)
-    message("GOT ARG_DEPENDENCY_STARTUP_M_LOCATIONS:${ARG_DEPENDENCY_STARTUP_M_LOCATIONS}")
     file(RELATIVE_PATH _install_rpath "/${ARG_MATLAB_CODE_INSTALL_DIR}" "/")
     foreach(location IN LISTS ARG_DEPENDENCY_STARTUP_M_LOCATIONS)
         string(REGEX REPLACE "^${CMAKE_INSTALL_PREFIX}/" "${_install_rpath}" location ${location})
         list(APPEND _DEPENDENCY_STARTUP_M_LOCATIONS ${location})
     endforeach()
-    configure_file(${ARG_STARTUP_M_TEMPLATE} ${ARG_CONFIG_DIR}/${ARG_STARTUP_M_INSTALL_TREE_FILE})
-    install(FILES ${ARG_CONFIG_DIR}/${ARG_STARTUP_M_INSTALL_TREE_FILE} RENAME ${ARG_STARTUP_M_FILE}
-            DESTINATION ${ARG_MATLAB_CODE_INSTALL_DIR} COMPONENT Runtime)
+    configure_file(${ARG_STARTUP_M_TEMPLATE} ${ARG_CONFIG_DIR}/PackageConfigInstallTree/${ARG_STARTUP_M_FILE})
+    install(FILES ${ARG_CONFIG_DIR}/PackageConfigInstallTree/${ARG_STARTUP_M_FILE} DESTINATION ${ARG_MATLAB_CODE_INSTALL_DIR} COMPONENT Runtime)
     if(OPT_MATLAB_INSTALL_DISTRIBUTION_STARTUP)
         #Install a copy of the startup at the root of install-tree for convenience of end MATLAB users
-        install(FILES ${ARG_CONFIG_DIR}/${ARG_STARTUP_M_INSTALL_TREE_FILE} RENAME ${ARG_STARTUP_M_FILE}
-                DESTINATION "." COMPONENT Runtime)
+        install(FILES ${ARG_CONFIG_DIR}/PackageConfigInstallTree/${ARG_STARTUP_M_FILE} DESTINATION "." COMPONENT Runtime)
     endif()
     unset(_MATLAB_INSTALLED_MEX_PATH)
 
     if(ARG_EXPORT_BUILD_TREE)
         #build-tree export
+        if(ARG_PACKAGE_CONFIG_TEMPLATE)
+            #MAIN ${PROJECT_NAME}CONFIG.CMAKE PACKAGE CONFIG FILE (INCLUDES THE ${PROJECT_NAME}@CONFIG-MATLAB.CMAKE FILE) FOR INSTALL TREE
+            configure_package_config_file(${ARG_PACKAGE_CONFIG_TEMPLATE} ${ARG_PACKAGE_CONFIG_FILE} INSTALL_DESTINATION "." INSTALL_PREFIX ${ARG_CONFIG_DIR})
+            #Update the user package registry with this location, only if we are also managing the main Package Config file.  Otherwise client will do this.
+            export(PACKAGE ${PROJECT_NAME})
+        endif()
         file(RELATIVE_PATH _MATLAB_CODE_DIR ${CMAKE_BINARY_DIR} ${ARG_MATLAB_SRC_DIR}) #Relative to CMAKE_BINARY_DIR
         set(_MATLAB_STARTUP_M ${ARG_CONFIG_DIR}/${ARG_STARTUP_M_FILE})
         if(ARG_EXPORT_BUILD_TREE)
             #build-tree export config @PROJECT_NAME@Config-matlab.cmake
-            configure_package_config_file(${ARG_PACKAGE_CONFIG_MATLAB_TEMPLATE} ${ARG_PACKAGE_CONFIG_FILE}
-                                        INSTALL_DESTINATION ${ARG_CONFIG_DIR}
+            message("ARG_CONFIG_DIR:${ARG_CONFIG_DIR}")
+            configure_package_config_file(${ARG_PACKAGE_CONFIG_MATLAB_TEMPLATE} ${ARG_PACKAGE_CONFIG_MATLAB_FILE}
+                                        INSTALL_DESTINATION "."
                                         INSTALL_PREFIX ${ARG_CONFIG_DIR}
                                         PATH_VARS _MATLAB_CODE_DIR _MATLAB_STARTUP_M
                                         NO_CHECK_REQUIRED_COMPONENTS_MACRO)
